@@ -80,7 +80,10 @@ export function ExplorerView({
       initFilters(seed.filters);
       void loadFresh();
     } else {
-      initFilters(sp.toString() ? paramsToFilters(sp) : seed.filters);
+      // Any query string used to replace the saved list with the empty defaults.
+      // ?run=1 then scanned every posting. URL keys still override; missing keys
+      // keep the portals.yml / profile.yml seed.
+      initFilters(paramsToFilters(sp, seed.filters));
       // Onboarding hand-off: ?run=1 auto-fires the free scan + flags the first-run
       // banner (the "matches found from your CV, free" reveal).
       if (sp.get("run") === "1" && sp.get("preset") !== CHINA_PRESET) {
