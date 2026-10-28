@@ -142,7 +142,7 @@ function ConfirmScore({
         onClick={onConfirm}
         className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-200 max-sm:min-h-[44px]"
       >
-        Score {n} now
+        Score {n} now, one at a time
       </button>
       <button type="button" onClick={onCancel} className="rounded-full px-2 py-2 text-xs text-faint transition-colors hover:text-foreground max-sm:min-h-[44px]">
         Cancel

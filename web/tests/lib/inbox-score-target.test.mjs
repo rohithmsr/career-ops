@@ -9,6 +9,14 @@ test("an unscored row is not evaluated", () => {
   assert.deepEqual(inboxScoreTarget(base), { evaluated: false, href: null, showScore: false });
 });
 
+test("a queued evaluation stays on the worker log without a score", () => {
+  assert.deepEqual(inboxScoreTarget({ ...base, queued: true }), {
+    evaluated: true,
+    href: "/jobs/job-1",
+    showScore: false,
+  });
+});
+
 test("a running evaluation stays on the worker log", () => {
   assert.deepEqual(inboxScoreTarget({ ...base, running: true, score: 4, reportN: 21 }), {
     evaluated: true,

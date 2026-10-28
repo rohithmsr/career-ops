@@ -22,10 +22,12 @@ test("task identity includes role; detail names exclude ticking progress", () =>
   assert.equal(workerDetailsLabel({ ...task, elapsed: 60, steps: ["Write"] }), workerDetailsLabel(task));
   assert.equal(workerState("done"), "Completed");
   assert.equal(workerState("error"), "Failed");
+  assert.equal(workerState("queued"), "Queued");
+  assert.equal(workerDetailsLabel({ ...task, status: "queued" }), "Open worker: Evaluate · FixtureCo · Engineer — Queued");
 });
 
 test("batch outcomes distinguish failures, active work and unavailable history", () => {
-  assert.equal(workerBatchSummary([job("a"), job("b", "error"), job("c", "running")], 4), "1 running, 1 completed, 1 failed, 1 unavailable");
+  assert.equal(workerBatchSummary([job("a"), job("b", "error"), job("c", "running"), job("d", "queued")], 5), "1 running, 1 queued, 1 completed, 1 failed, 1 unavailable");
   assert.equal(workerBatchSummary([job("a"), job("b", "error")]), "1 completed, 1 failed");
 });
 

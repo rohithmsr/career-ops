@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink, Plus, Check, Loader2, ShieldQuestion, Sparkles, Coins } from "lucide-react";
+import { ExternalLink, Plus, Check, Clock, Loader2, ShieldQuestion, Sparkles, Coins } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { instrumentSerif } from "@/lib/fonts";
 import { ATS_LABEL, type AtsSource, type DiscoveredOffer } from "@/lib/explore";
@@ -49,9 +49,10 @@ export function DiscoveryCard({ offer, inPipeline, evaluatedN }: { offer: Discov
     () => jobs.filter((j) => j.input === offer.url).sort((a, b) => b.startedAt - a.startedAt)[0],
     [jobs, offer.url],
   );
-  const working = job?.status === "running";
+  const queued = job?.status === "queued";
+  const working = job?.status === "running" || queued;
   const doneEval = job?.status === "done" && job.kind === "evaluate";
-  const statusLabel = WORKER_LABEL[job?.kind ?? ""] ?? "Working…";
+  const statusLabel = queued ? "Queued…" : (WORKER_LABEL[job?.kind ?? ""] ?? "Working…");
 
   const isAdded = added.has(offer.url) || inPipeline || working || doneEval;
   const isAdding = adding.has(offer.url);
@@ -135,7 +136,7 @@ export function DiscoveryCard({ offer, inPipeline, evaluatedN }: { offer: Discov
           </a>
         ) : working ? (
           <div className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-brand/30 bg-brand-soft/60 px-2.5 py-2 text-xs font-medium text-brand">
-            <Loader2 className="size-3.5 animate-spin" />
+            {queued ? <Clock className="size-3.5" /> : <Loader2 className="size-3.5 animate-spin" />}
             {statusLabel}
             <span className="text-brand/60">· in pipeline</span>
           </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Check, AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { Check, AlertTriangle, Clock, Loader2, Trash2 } from "lucide-react";
 import { useJobs } from "@/components/jobs/job-store";
 import { pillTone } from "@/components/jobs/worker-pills";
+import { isActiveWorkerStatus } from "@/lib/worker-feedback.mjs";
 import { cn } from "@/lib/cn";
 
 const TONE_CHIP = {
@@ -25,7 +26,7 @@ export default function JobsHistory() {
             AI runs started from this dashboard, kept in this browser. <span className="tabular-nums">{jobs.length}</span> total.
           </p>
         </div>
-        {jobs.some((j) => j.status !== "running") && (
+        {jobs.some((j) => !isActiveWorkerStatus(j.status)) && (
           <button
             onClick={clearFinished}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
@@ -55,6 +56,8 @@ export default function JobsHistory() {
                 <Link href={`/jobs/${j.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
                   {j.status === "running" ? (
                     <Loader2 className="size-4 shrink-0 animate-spin text-brand" />
+                  ) : j.status === "queued" ? (
+                    <Clock className="size-4 shrink-0 text-muted" />
                   ) : j.status === "error" ? (
                     <AlertTriangle className="size-4 shrink-0 text-red-400" />
                   ) : (

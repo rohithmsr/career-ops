@@ -3,9 +3,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { scoreTone } from "@/lib/format";
 import { resolveCliId } from "@/lib/saved-cli";
-import { createWorkerFeedback } from "@/lib/worker-feedback.mjs";
+import { createWorkerFeedback, isActiveWorkerStatus } from "@/lib/worker-feedback.mjs";
 import { readJobStream } from "@/lib/job-stream.mjs";
 import { createJobsPersister } from "@/lib/jobs-persist.mjs";
+import { createSerialQueue } from "@/lib/serial-queue.mjs";
 
 export type JobStep = { kind: "tool" | "status"; label: string; ts: number };
 export type JobResult = { score: number | null; summary: string; tone: "good" | "warn" | "bad" | "muted" };
@@ -18,7 +19,7 @@ export type Job = {
   input?: string; // the URL/posting it processed (links inbox rows to their worker)
   kind?: string;
   batchId?: string; // groups jobs fired together (e.g. "evaluate all Anthropic")
-  status: "running" | "done" | "error";
+  status: "queued" | "running" | "done" | "error";
   steps: JobStep[];
   text: string;
   result?: JobResult;
@@ -79,7 +80,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
       const arr = raw ? JSON.parse(raw) : null;
       if (Array.isArray(arr)) {
         // anything left "running" from a previous session is stale → mark interrupted
-        setJobs(arr.map((j: Job) => (j.status === "running" ? { ...j, status: "error", steps: [...(j.steps || []), { kind: "status", label: "Interrupted (page reloaded)", ts: Date.now() }] } : j)));
+        setJobs(arr.map((j: Job) => (isActiveWorkerStatus(j.status) ? { ...j, status: "error", steps: [...(j.steps || []), { kind: "status", label: "Interrupted (page reloaded)", ts: Date.now() }] } : j)));
       }
     } catch {
       /* ignore */
@@ -121,6 +122,13 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     setJobs((js) => js.map((j) => (j.id === id ? fn(j) : j)));
   }, []);
 
+  // Evaluations share one queue. A shortlist of 5–6 used to open that many
+  // CLI runs at once and trip the provider rate limit. One runs, the next
+  // starts when that run's stream ends, and each row updates on its own.
+  const evalQueue = useRef<ReturnType<typeof createSerialQueue> | null>(null);
+  if (evalQueue.current === null) evalQueue.current = createSerialQueue();
+  const evalTokens = useRef(new Map<string, object>());
+
   const startJob = useCallback(
     (opts: StartOpts): string | null => {
       const id = `job-${Date.now()}-${seq.current++}`;
@@ -142,7 +150,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
       // Declared before resolveCliId() so its stale-CLI notice lands in the log
       // sent to /api/runs/save, not only in the live job.
       const steps: JobStep[] = [];
-      (async () => {
+      const launch = async () => {
         // resolveCliId() validates the saved id against what is installed; a
         // bare readSavedCliId() here would short-circuit that check and launch
         // a run against an uninstalled CLI (#4012).
@@ -240,15 +248,44 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         } catch {
           finish("error", "Connection error");
         }
-      })();
+      };
+
+      if (opts.kind === "evaluate") {
+        const placed = evalQueue.current!.enqueue(launch, {
+          onStart: () =>
+            patch(id, (j) => ({
+              ...j,
+              status: "running",
+              startedAt: Date.now(),
+              steps: [...j.steps, { kind: "status", label: "Starting…", ts: Date.now() }],
+            })),
+        });
+        evalTokens.current.set(id, placed.token);
+        if (!placed.startNow) {
+          patch(id, (j) => ({
+            ...j,
+            status: "queued",
+            steps: [{ kind: "status", label: "Waiting — scores run one at a time", ts: Date.now() }],
+          }));
+        }
+      } else {
+        void launch();
+      }
 
       return id;
     },
     [patch],
   );
 
-  const removeJob = useCallback((id: string) => setJobs((js) => js.filter((j) => j.id !== id)), []);
-  const clearFinished = useCallback(() => setJobs((js) => js.filter((j) => j.status === "running")), []);
+  const removeJob = useCallback((id: string) => {
+    const token = evalTokens.current.get(id);
+    if (token) {
+      evalQueue.current?.cancel(token);
+      evalTokens.current.delete(id);
+    }
+    setJobs((js) => js.filter((j) => j.id !== id));
+  }, []);
+  const clearFinished = useCallback(() => setJobs((js) => js.filter((j) => isActiveWorkerStatus(j.status))), []);
 
   // A new object only when the list or an action changes, not on every render
   // of this provider (the screen-reader announcement re-renders it too).

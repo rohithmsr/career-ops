@@ -11,7 +11,7 @@ import { CompanyLogo } from "@/components/company-logo";
 import { cn } from "@/lib/cn";
 import { inboxScoreTarget } from "@/lib/inbox-score-target.mjs";
 
-export type RowScore = { score: number | null; tone: "good" | "warn" | "bad" | "muted"; jobId: string; running: boolean; reportN?: number | null };
+export type RowScore = { score: number | null; tone: "good" | "warn" | "bad" | "muted"; jobId: string; running: boolean; queued?: boolean; reportN?: number | null };
 
 function agoLabel(age: number | null): string | null {
   if (age == null) return null;
@@ -103,6 +103,8 @@ export function TriageRow({
               <Loader2 className="size-3.5 animate-spin text-brand" />
               <span className="text-brand max-sm:hidden">Scoring…</span>
             </>
+          ) : scored!.queued ? (
+            <span className="text-muted">Queued</span>
           ) : target.showScore ? (
             <Badge tone={scored!.tone}>{scored!.score}/5</Badge>
           ) : (

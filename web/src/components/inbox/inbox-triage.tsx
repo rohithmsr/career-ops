@@ -128,7 +128,7 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
     }
     const m = new Map<string, RowScore>();
     for (const [url, j] of best) {
-      m.set(url, { score: j.result?.score ?? null, tone: j.result?.tone ?? "muted", jobId: j.id, running: j.status === "running", reportN: j.reportN });
+      m.set(url, { score: j.result?.score ?? null, tone: j.result?.tone ?? "muted", jobId: j.id, running: j.status === "running", queued: j.status === "queued", reportN: j.reportN });
     }
     return m;
   }, [jobs]);
@@ -341,7 +341,7 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
 
       {/* empty-shortlist guidance (only once there's nothing saved) */}
       {shortlist.length === 0 && (
-        <p className="mt-4 text-center text-xs text-faint">Save roles worth a look, then score them together — one token spend.</p>
+        <p className="mt-4 text-center text-xs text-faint">Save roles worth a look, then score them. Each role runs after the previous one finishes.</p>
       )}
       </div>
 

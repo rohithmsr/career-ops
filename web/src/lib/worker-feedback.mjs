@@ -7,7 +7,15 @@ export function workerIdentity(job) {
 
 /** @param {string} status */
 export function workerState(status) {
-  return status === "done" ? "Completed" : status === "error" ? "Failed" : "Running";
+  if (status === "done") return "Completed";
+  if (status === "error") return "Failed";
+  if (status === "queued") return "Queued";
+  return "Running";
+}
+
+/** A worker the user still expects to finish. Queued work has not started. */
+export function isActiveWorkerStatus(status) {
+  return status === "running" || status === "queued";
 }
 
 /** Stable during timer/tool updates; includes the visible task identity. @param {Worker} job */
@@ -19,6 +27,7 @@ export function workerDetailsLabel(job) {
 export function workerBatchSummary(jobs, total = jobs.length) {
   const counts = [
     ["running", jobs.filter((j) => j.status === "running").length],
+    ["queued", jobs.filter((j) => j.status === "queued").length],
     ["completed", jobs.filter((j) => j.status === "done").length],
     ["failed", jobs.filter((j) => j.status === "error").length],
     ["unavailable", Math.max(0, total - jobs.length)],

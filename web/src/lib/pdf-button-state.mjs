@@ -1,5 +1,5 @@
 /**
- * @typedef {{ id: string, status: "running" | "done" | "error", steps: { kind: string, label: string }[] }} PdfJob
+ * @typedef {{ id: string, status: "queued" | "running" | "done" | "error", steps: { kind: string, label: string }[] }} PdfJob
  * @typedef {{ jobId: string, reason: string } | null} PdfFailure
  * @typedef {{ kind: "running", jobId: string } | { kind: "ready" | "idle", failure: PdfFailure }} PdfButtonState
  */
@@ -10,7 +10,7 @@
  * @returns {PdfButtonState}
  */
 export function pdfButtonState(job, pdfReady) {
-  if (job?.status === "running") return { kind: "running", jobId: job.id };
+  if (job?.status === "running" || job?.status === "queued") return { kind: "running", jobId: job.id };
   const failure = job?.status === "error" ? { jobId: job.id, reason: failureReason(job) } : null;
   return { kind: pdfReady || job?.status === "done" ? "ready" : "idle", failure };
 }

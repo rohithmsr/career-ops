@@ -169,13 +169,15 @@ test("workers expose task-specific state and notify once without moving focus", 
     await confirm.waitFor();
     assert.equal(workers.has('https://example.com/batch-platform'), false, 'batch must wait for human confirmation');
     await tabTo(confirm); await page.keyboard.press('Enter');
-    await until(() => workers.has('https://example.com/batch-platform') && workers.has('https://example.com/batch-design'));
+    await until(() => workers.has('https://example.com/batch-platform'));
+    assert.equal(workers.has('https://example.com/batch-design'), false, 'the second evaluation waits until the first finishes');
     await tabTo(input);
-    await latest.getByText('2 running', { exact: true }).waitFor();
+    await latest.getByText('1 running, 1 queued', { exact: true }).waitFor();
     assert.ok(await treeHas('link', 'Open worker: Evaluate · FixtureCo · Platform Engineer — Running'));
-    assert.ok(await treeHas('link', 'Open worker: Evaluate · FixtureCo · Product Designer — Running'));
+    assert.ok(await treeHas('link', 'Open worker: Evaluate · FixtureCo · Product Designer — Queued'));
     assert.equal(await latest.getByText('Platform Engineer · Running', { exact: true }).count(), 1);
     finish('https://example.com/batch-platform', { type: 'done', tokens: 200 });
+    await until(() => workers.has('https://example.com/batch-design'));
     finish('https://example.com/batch-design', { type: 'error', msg: 'Fictional evaluation failed' });
     await until(async () => (await notices()).length === 3);
     assert.equal((await notices()).at(-1), 'Evaluate · FixtureCo · Platform Engineer: completed. Evaluate · FixtureCo · Product Designer: failed.');

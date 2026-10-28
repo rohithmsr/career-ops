@@ -36,6 +36,10 @@ test("a running job links to its log", () => {
   assert.deepEqual(pdfButtonState({ id: "job-10", status: "running", steps: [] }, true), { kind: "running", jobId: "job-10" });
 });
 
+test("a queued job stays on its log instead of offering another run", () => {
+  assert.deepEqual(pdfButtonState({ id: "job-11", status: "queued", steps: [] }, false), { kind: "running", jobId: "job-11" });
+});
+
 test("no job and no tracker CV is the plain Generate button", () => {
   assert.deepEqual(pdfButtonState(undefined, false), { kind: "idle", failure: null });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, X, Loader2, AlertTriangle } from "lucide-react";
+import { Check, X, Loader2, AlertTriangle, Clock } from "lucide-react";
 import type { Job } from "@/components/jobs/job-store";
 import { workerIdentity, workerState } from "@/lib/worker-feedback.mjs";
 import { jobErrorHint } from "@/lib/job-error-hint.mjs";
@@ -87,6 +87,7 @@ export function WorkerCard({
 }) {
   const tone = TONE[pillTone(job)];
   const running = job.status === "running";
+  const queued = job.status === "queued";
   const elapsed = useElapsed(running, job.startedAt);
   const rawLast = job.steps[job.steps.length - 1]?.label;
   const last = rawLast ? humanizeStep(rawLast) : undefined;
@@ -102,6 +103,8 @@ export function WorkerCard({
       <div className="flex items-center gap-2">
         {job.status === "running" ? (
           <Loader2 className="size-3 shrink-0 animate-spin text-brand" />
+        ) : queued ? (
+          <Clock className="size-3 shrink-0 text-muted" />
         ) : job.status === "error" ? (
           <AlertTriangle className={cn("size-3 shrink-0", tone.icon)} />
         ) : (
@@ -129,13 +132,15 @@ export function WorkerCard({
       <div className={cn("mt-1.5 w-full overflow-hidden rounded-full bg-surface-hover", inline ? "h-1.5" : "h-1")}>
         {job.status === "running" ? (
           <div className="job-indeterminate h-full w-full" />
+        ) : queued ? (
+          <div className="h-full w-1/5 rounded-full bg-zinc-400/40" />
         ) : (
           <div className={cn("h-full w-full rounded-full", tone.bar)} />
         )}
       </div>
-      {(bottom || running) && (
+      {(bottom || running || queued) && (
         <div className={cn("mt-1 truncate text-faint", inline ? "text-xs" : "text-[10px]")}>
-          {running ? `${last ?? "Working"} · ${fmtElapsed(elapsed)}` : bottom}
+          {running ? `${last ?? "Working"} · ${fmtElapsed(elapsed)}` : queued ? (last ?? "Waiting") : bottom}
         </div>
       )}
       {errorHint && (

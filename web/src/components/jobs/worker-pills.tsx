@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { X, History } from "lucide-react";
 import { useJobs } from "@/components/jobs/job-store";
 import { WorkerCard, pillTone, TONE } from "@/components/jobs/worker-card";
-import { workerDetailsLabel, workerIdentity } from "@/lib/worker-feedback.mjs";
+import { isActiveWorkerStatus, workerDetailsLabel, workerIdentity } from "@/lib/worker-feedback.mjs";
 import { cn } from "@/lib/cn";
 
 // Back-compat re-exports (app/jobs/page.tsx imports pillTone from here).
@@ -18,13 +18,15 @@ export function WorkerPills() {
   const pathname = usePathname();
   if (jobs.length === 0) return null;
   const running = jobs.filter((j) => j.status === "running").length;
-  const finished = jobs.length - running;
+  const queued = jobs.filter((j) => j.status === "queued").length;
+  const finished = jobs.length - running - queued;
 
   return (
     <div className="mt-4 border-t border-border pt-3">
       <div className="mb-2 flex items-center gap-2 px-1">
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-faint">Workers</span>
         {running > 0 && <span className="text-[10px] tabular-nums text-brand">{running} running</span>}
+        {queued > 0 && <span className="text-[10px] tabular-nums text-muted">{queued} queued</span>}
         <Link href="/jobs" className="ml-auto text-faint transition-colors hover:text-foreground" title="History" aria-label="Worker history">
           <History className="size-3.5" />
         </Link>

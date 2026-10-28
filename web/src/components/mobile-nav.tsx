@@ -12,6 +12,7 @@ import { UsageMeter } from "@/components/usage-meter";
 import { instrumentSerif } from "@/lib/fonts";
 import { visibleNavItems, isActivePath } from "@/lib/nav-items";
 import { useJobs } from "@/components/jobs/job-store";
+import { isActiveWorkerStatus } from "@/lib/worker-feedback.mjs";
 
 // Mobile navigation (< md): a glass top bar + a right-side slide-over drawer that
 // mirrors the desktop sidebar (nav + workers + usage + theme). Premium details:
@@ -39,7 +40,7 @@ export function MobileNav({ followupsEnabled }: { followupsEnabled: boolean }) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const { jobs } = useJobs();
-  const running = jobs.filter((j) => j.status === "running").length;
+  const running = jobs.filter((j) => isActiveWorkerStatus(j.status)).length;
 
   // Close on route change.
   useEffect(() => {
