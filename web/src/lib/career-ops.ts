@@ -47,6 +47,16 @@ export function careerOpsRoot(): string {
   // data root from the process's parent. Identical when the variable is unset,
   // which is every default install.
   const coreRoot = resolveCodeRoot(process.cwd(), process.env);
+  try {
+    const envPath = path.join(coreRoot, ".env");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf8");
+      const m = content.match(/^\s*GEMINI_API_KEY\s*=\s*(.*)?$/m) || content.match(/^\s*GEMINI_FREE_API_KEY\s*=\s*(.*)?$/m);
+      if (m && m[1]) {
+        process.env.GEMINI_API_KEY = m[1].replace(/^['"](.*)['"]$/, "$1").trim();
+      }
+    }
+  } catch {}
   return resolveDataRoot(
     coreRoot,
     (p) => {

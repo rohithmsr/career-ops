@@ -4,6 +4,7 @@ import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -112,6 +113,68 @@ console.log("\x1b[1m\x1b[36m====================================================
 const dataRoot = getCareerOpsRoot();
 console.log("\x1b[32m✓\x1b[0m Data root resolved: " + dataRoot);
 
+// Load .env and configure Gemini as model provider for Antigravity CLI
+function setupGeminiEnv(rootDir, dataRoot) {
+  try {
+    const requireHere = createRequire(import.meta.url);
+    const dotenv = requireHere("dotenv");
+    const candidates = [
+      path.join(dataRoot, ".env"),
+      path.join(rootDir, ".env"),
+    ];
+    for (const envPath of candidates) {
+      if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath, quiet: true });
+        break;
+      }
+    }
+  } catch {
+    // Fallback: manually parse .env if dotenv isn't reachable
+    const envFile = [path.join(dataRoot, ".env"), path.join(rootDir, ".env")].find((p) => fs.existsSync(p));
+    if (envFile) {
+      try {
+        const content = fs.readFileSync(envFile, "utf8");
+        for (const line of content.split(/\r?\n/)) {
+          const m = line.match(/^\s*([A-Za-z_0-9]+)\s*=\s*(.*)?\s*$/);
+          if (m && !process.env[m[1]]) {
+            process.env[m[1]] = m[2].replace(/^['"](.*)['"]$/, "$1").trim();
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // Ensure GEMINI_API_KEY is resolved (fall back to free/paid if default is unset)
+  if (!process.env.GEMINI_API_KEY) {
+    if (process.env.GEMINI_FREE_API_KEY) {
+      process.env.GEMINI_API_KEY = process.env.GEMINI_FREE_API_KEY;
+    } else if (process.env.GEMINI_PAID_API_KEY) {
+      process.env.GEMINI_API_KEY = process.env.GEMINI_PAID_API_KEY;
+    }
+  }
+
+  // Ensure Antigravity CLI settings.json has modelProvider set to "gemini"
+  try {
+    const agySettingsPath = path.join(os.homedir(), ".gemini", "antigravity-cli", "settings.json");
+    if (fs.existsSync(agySettingsPath)) {
+      const raw = fs.readFileSync(agySettingsPath, "utf8");
+      const settings = JSON.parse(raw);
+      if (settings.modelProvider !== "gemini") {
+        settings.modelProvider = "gemini";
+        fs.writeFileSync(agySettingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  if (process.env.GEMINI_API_KEY) {
+    console.log("\x1b[32m✓\x1b[0m Gemini model provider configured (GEMINI_API_KEY loaded from .env)");
+  }
+}
+
+setupGeminiEnv(rootDir, dataRoot);
+
 // Plan Next.js run and resolve bind host from CAREER_OPS_WEB_ALLOWED_HOSTS
 const plan = planNextRun({
   command: "dev",
@@ -192,6 +255,7 @@ function pollReady() {
 // Environment for the web server
 const childEnv = {
   ...process.env,
+  ...(process.env.GEMINI_API_KEY ? { GEMINI_API_KEY: process.env.GEMINI_API_KEY } : {}),
   PORT: String(port),
   HOSTNAME: bindHost,
   CAREER_OPS_ROOT: dataRoot,

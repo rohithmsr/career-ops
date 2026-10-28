@@ -11,6 +11,7 @@
 // so lib/cli-flags.mjs and lib/is-main-module.mjs are out of reach by design.
 
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import { dirname, join } from "node:path";
@@ -93,6 +94,23 @@ try {
 // do meanwhile. The terminal delivers SIGINT to the whole foreground group, so
 // next shuts itself down; re-signalling it from here would only double up.
 //
+// Ensure GEMINI_API_KEY from .env is available to spawned CLIs
+if (!process.env.GEMINI_API_KEY) {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    for (const envPath of [join(here, "..", ".env"), join(here, ".env")]) {
+      if (fs.existsSync(envPath)) {
+        const raw = fs.readFileSync(envPath, "utf8");
+        const m = raw.match(/^\s*GEMINI_API_KEY\s*=\s*(.*)?$/m) || raw.match(/^\s*GEMINI_FREE_API_KEY\s*=\s*(.*)?$/m);
+        if (m && m[1]) {
+          process.env.GEMINI_API_KEY = m[1].replace(/^['"](.*)['"]$/, "$1").trim();
+          break;
+        }
+      }
+    }
+  } catch {}
+}
+
 // NEXT_TELEMETRY_DISABLED in the env, not next.config.mjs alone: `next dev`'s
 // parent CLI process records its session event without ever loading the config.
 const result = spawnSync(process.execPath, [nextEntry, ...plan.argv], {

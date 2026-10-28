@@ -185,6 +185,18 @@ export async function POST(req: Request) {
   // every CLI-invoking route (assistant, explore/ai, cv/ingest, the apply planners),
   // which had the identical bug, and puts it behind one tested helper so it cannot
   // drift back in on any single call site.
+  // Ensure GEMINI_API_KEY is synced from .env for every run
+  try {
+    const envPath = path.join(careerOpsRoot(), ".env");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf8");
+      const m = content.match(/^\s*GEMINI_API_KEY\s*=\s*(.*)?$/m) || content.match(/^\s*GEMINI_FREE_API_KEY\s*=\s*(.*)?$/m);
+      if (m && m[1]) {
+        process.env.GEMINI_API_KEY = m[1].replace(/^['"](.*)['"]$/, "$1").trim();
+      }
+    }
+  } catch {}
+
   let child;
   try {
     child = spawnHeadlessCli(
