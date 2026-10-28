@@ -276,13 +276,20 @@ if (postingUrl && !isPostingUrl(postingUrl)) {
 // ---------------------------------------------------------------------------
 // Validate environment
 // ---------------------------------------------------------------------------
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
+const freeApiKey = process.env.GEMINI_FREE_API_KEY;
+const paidApiKey = process.env.GEMINI_PAID_API_KEY;
+const defaultApiKey = process.env.GEMINI_API_KEY;
+
+const activeApiKey = freeApiKey || defaultApiKey;
+const fallbackApiKey = (freeApiKey && (paidApiKey || defaultApiKey)) ? (paidApiKey || defaultApiKey) : (paidApiKey && paidApiKey !== activeApiKey ? paidApiKey : null);
+
+if (!activeApiKey) {
   console.error(`
 ❌  GEMINI_API_KEY not found.
 
    1. Get a free key at https://aistudio.google.com/apikey
    2. Add it to .env:   GEMINI_API_KEY=your_key_here
+      (Optional dual-tier: GEMINI_FREE_API_KEY=... and GEMINI_PAID_API_KEY=...)
    3. Or export it:     export GEMINI_API_KEY=your_key_here
 `);
   process.exit(1);
@@ -446,43 +453,51 @@ if (!contextOnly) {
 // ---------------------------------------------------------------------------
 console.log(`🤖  Calling Gemini (${modelName})... this may take 30-60 seconds.\n`);
 
-const genAI = new GoogleGenerativeAI(apiKey);
-// Prompt caching (#1709) — engine 3 of the four, adapted to Gemini's shape.
-// Gemini has no `cache_control` field; its lever is the ~12K-token static prefix
-// (shared + oferta + cv) being a stable `systemInstruction` rather than the first
-// turn of `contents` — that's what its 2.5 models cache implicitly across
-// back-to-back requests. So the static context moves to `systemInstruction` and
-// generateContent() carries only the per-JD user turn. The prompt text is
-// unchanged — just where it sits in the request.
-const model = genAI.getGenerativeModel({
-  model: modelName,
-  systemInstruction: systemPrompt,
-  generationConfig: {
-    temperature: 0.4,      // deterministic enough for structured evaluation
-    maxOutputTokens: 8192, // full 7-block evaluation
-  },
-});
-
 let evaluationText;
-try {
-  const result = await model.generateContent(`JOB DESCRIPTION TO EVALUATE:\n\n${jdText}`);
-  evaluationText = result.response.text();
-  const usage = {
-    prompt_tokens: result.response.usageMetadata?.promptTokenCount ?? 0,
-    completion_tokens: result.response.usageMetadata?.candidatesTokenCount ?? 0,
-    total_tokens: result.response.usageMetadata?.totalTokenCount ?? 0,
-    cached_tokens: result.response.usageMetadata?.cachedContentTokenCount ?? 0
-  };
-  tracker.record('evaluation', usage);
-} catch (err) {
-  const sanitizedMsg = (err.message || '').split(apiKey).join('[REDACTED]');
-  console.error('❌  Gemini API error:', sanitizedMsg);
-  if (sanitizedMsg.includes('API_KEY')) {
-    console.error('    Check your GEMINI_API_KEY in .env');
-  } else if (sanitizedMsg.includes('quota') || sanitizedMsg.includes('rate')) {
-    console.error('    You may have hit the free-tier rate limit. Wait 60s and retry.');
+let currentKey = activeApiKey;
+let attemptedFallback = false;
+
+while (true) {
+  const genAI = new GoogleGenerativeAI(currentKey);
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: systemPrompt,
+    generationConfig: {
+      temperature: 0.4,      // deterministic enough for structured evaluation
+      maxOutputTokens: 8192, // full 7-block evaluation
+    },
+  });
+
+  try {
+    const result = await model.generateContent(`JOB DESCRIPTION TO EVALUATE:\n\n${jdText}`);
+    evaluationText = result.response.text();
+    const usage = {
+      prompt_tokens: result.response.usageMetadata?.promptTokenCount ?? 0,
+      completion_tokens: result.response.usageMetadata?.candidatesTokenCount ?? 0,
+      total_tokens: result.response.usageMetadata?.totalTokenCount ?? 0,
+      cached_tokens: result.response.usageMetadata?.cachedContentTokenCount ?? 0
+    };
+    tracker.record('evaluation', usage);
+    break;
+  } catch (err) {
+    const isRateOrQuota = (err.message || '').includes('429') ||
+                          (err.message || '').toLowerCase().includes('quota') ||
+                          (err.message || '').toLowerCase().includes('rate');
+    if (isRateOrQuota && fallbackApiKey && !attemptedFallback) {
+      console.warn('\n⚠️  Free-tier limit / 429 encountered. Automatically falling back to Paid API key...\n');
+      currentKey = fallbackApiKey;
+      attemptedFallback = true;
+      continue;
+    }
+    const sanitizedMsg = (err.message || '').split(currentKey).join('[REDACTED]');
+    console.error('❌  Gemini API error:', sanitizedMsg);
+    if (sanitizedMsg.includes('API_KEY')) {
+      console.error('    Check your GEMINI_API_KEY in .env');
+    } else if (sanitizedMsg.includes('quota') || sanitizedMsg.includes('rate')) {
+      console.error('    You may have hit the rate limit. Wait 60s and retry.');
+    }
+    process.exit(1);
   }
-  process.exit(1);
 }
 
 try {
